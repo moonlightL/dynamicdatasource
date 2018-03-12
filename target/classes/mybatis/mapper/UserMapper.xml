@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.light.mapper.UserMapper">
+
+	<select id="getById" parameterType="java.lang.Integer" resultType="com.light.domain.User">
+		select id from user where id = #{id}
+	</select>
+	
+	<delete id="deleteById" parameterType="java.lang.Integer">
+		delete from user where id = #{id}
+	</delete>
+</mapper>

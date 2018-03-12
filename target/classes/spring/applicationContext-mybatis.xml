@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+					http://www.springframework.org/schema/beans/spring-beans-4.0.xsd	
+					http://www.springframework.org/schema/context  
+                    http://www.springframework.org/schema/context/spring-context-4.0.xsd
+                    http://www.springframework.org/schema/tx
+                    http://www.springframework.org/schema/tx/spring-tx-4.0.xsd
+                    http://www.springframework.org/schema/aop
+                    http://www.springframework.org/schema/aop/spring-aop-4.0.xsd">
+
+    <context:component-scan base-package="com.light.*">
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    </context:component-scan>
+
+    <context:property-placeholder location="classpath:*.properties"/>
+    
+    <!-- 数据源 -->
+    <bean id="dataSource" class="com.light.dynamicdatasource.DynamicDataSource">
+    	<property name="targetDataSources">
+    		<map key-type="java.lang.String">
+    			<entry key="master" value-ref="masterDataSource"></entry>
+    			<entry key="slave" value-ref="slave01DataSource"></entry>
+    		</map>
+    	</property>
+    	<!-- 默认数据源 -->
+    	<property name="defaultTargetDataSource" ref="masterDataSource"/>
+    </bean>
+    
+    <!-- 主库数据源 -->
+    <bean id="masterDataSource" class="com.alibaba.druid.pool.DruidDataSource" destroy-method="close">
+        <property name="url" value="${jdbc.master.url}"/>
+        <property name="username" value="${jdbc.master.username}"/>
+        <property name="password" value="${jdbc.master.password}"/>
+        <property name="driverClassName" value="${jdbc.driver}"/>
+        <property name="initialSize" value="5"/>
+        <property name="minIdle" value="5"/>
+        <property name="maxActive" value="50"/>
+    </bean>
+    
+    <!-- 从库数据源 -->
+    <bean id="slave01DataSource" class="com.alibaba.druid.pool.DruidDataSource" destroy-method="close">
+        <property name="url" value="${jdbc.slave01.url}"/>
+        <property name="username" value="${jdbc.slave01.username}"/>
+        <property name="password" value="${jdbc.slave01.password}"/>
+        <property name="driverClassName" value="${jdbc.driver}"/>
+        <property name="initialSize" value="5"/>
+        <property name="minIdle" value="5"/>
+        <property name="maxActive" value="50"/>
+    </bean>
+
+
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"></property>
+        <!-- 引入 mybatis 配置文件 -->
+        <property name="configLocation" value="classpath:mybatis/SqlMapConfig.xml"></property>
+         <property name="typeAliasesPackage" value="com.light.domain"></property>
+        <!-- sql配置文件 -->
+         <property name="mapperLocations" value="classpath:mybatis/mapper/*.xml"></property>
+    </bean>
+
+    <!-- 扫描Mapper -->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.light.mapper"></property>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"></property>
+    </bean>
+    
+
+    <!-- 事务管理器 -->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <!-- 通知 -->
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <!-- 传播行为 -->
+            <tx:method name="save*" propagation="REQUIRED"/>
+            <tx:method name="insert*" propagation="REQUIRED"/>
+            <tx:method name="delete*" propagation="REQUIRED"/>
+            <tx:method name="update*" propagation="REQUIRED"/>
+            <tx:method name="find*" propagation="SUPPORTS" read-only="true"/>
+            <tx:method name="get*" propagation="SUPPORTS" read-only="true"/>
+            <tx:method name="query*" propagation="SUPPORTS" read-only="true"/>
+        </tx:attributes>
+    </tx:advice>
+
+    <!-- 切面 -->
+    <bean id="dataSourceAspect" class="com.light.dynamicdatasource.DataSourceAspect"></bean>
+    
+    <aop:config proxy-target-class="true">
+    	<aop:pointcut id="myPointcut" expression="execution(* com.light.service.*.*(..))" />
+    	<!-- 事务切面 -->
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="myPointcut"/>
+    	<!-- 自定义切面 -->
+    	<aop:aspect ref="dataSourceAspect" order="-9999">
+    		<aop:before method="before" pointcut-ref="myPointcut" />
+    	</aop:aspect>
+    </aop:config>
+    
+
+    <tx:annotation-driven transaction-manager="transactionManager"/>
+
+</beans>
